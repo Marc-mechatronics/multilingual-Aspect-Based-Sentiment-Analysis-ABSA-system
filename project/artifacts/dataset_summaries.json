@@ -1,0 +1,121 @@
+{
+  "train": {
+    "rows": 1971,
+    "columns": [
+      "review_id",
+      "review_text",
+      "star_rating",
+      "date",
+      "business_name",
+      "business_category",
+      "platform",
+      "aspects",
+      "aspect_sentiments",
+      "normalized_review_text",
+      "model_text"
+    ],
+    "duplicate_review_ids": 0,
+    "duplicate_review_texts": 88,
+    "empty_review_texts": 0,
+    "aspect_counts": {
+      "food": 454,
+      "service": 988,
+      "price": 354,
+      "cleanliness": 185,
+      "delivery": 161,
+      "ambiance": 378,
+      "app_experience": 453,
+      "general": 303,
+      "none": 57
+    },
+    "sentiment_counts": {
+      "positive": 1646,
+      "negative": 1538,
+      "neutral": 149
+    },
+    "aspect_cardinality": {
+      "1": 1066,
+      "2": 552,
+      "3": 266,
+      "4": 71,
+      "5": 15,
+      "6": 1
+    },
+    "top_pairs": {
+      "service:positive": 529,
+      "service:negative": 449,
+      "app_experience:negative": 327,
+      "ambiance:positive": 268,
+      "general:positive": 255,
+      "food:positive": 246,
+      "price:negative": 233,
+      "food:negative": 177,
+      "delivery:negative": 142,
+      "app_experience:positive": 111,
+      "price:positive": 110,
+      "cleanliness:positive": 109,
+      "ambiance:negative": 101,
+      "cleanliness:negative": 75,
+      "none:neutral": 57
+    }
+  },
+  "validation": {
+    "rows": 500,
+    "columns": [
+      "review_id",
+      "review_text",
+      "star_rating",
+      "date",
+      "business_name",
+      "business_category",
+      "platform",
+      "aspects",
+      "aspect_sentiments",
+      "normalized_review_text",
+      "model_text"
+    ],
+    "duplicate_review_ids": 0,
+    "duplicate_review_texts": 15,
+    "empty_review_texts": 0,
+    "aspect_counts": {
+      "food": 102,
+      "service": 253,
+      "price": 80,
+      "cleanliness": 51,
+      "delivery": 48,
+      "ambiance": 100,
+      "app_experience": 120,
+      "general": 74,
+      "none": 12
+    },
+    "sentiment_counts": {
+      "positive": 443,
+      "negative": 357,
+      "neutral": 40
+    },
+    "aspect_cardinality": {
+      "1": 273,
+      "2": 133,
+      "3": 77,
+      "4": 15,
+      "5": 2
+    },
+    "top_pairs": {
+      "service:positive": 151,
+      "service:negative": 102,
+      "ambiance:positive": 75,
+      "app_experience:negative": 67,
+      "general:positive": 63,
+      "price:negative": 60,
+      "food:positive": 53,
+      "app_experience:positive": 42,
+      "delivery:negative": 41,
+      "food:negative": 40,
+      "cleanliness:positive": 35,
+      "ambiance:negative": 23,
+      "price:positive": 18,
+      "cleanliness:negative": 16,
+      "none:neutral": 12
+    }
+  }
+}
