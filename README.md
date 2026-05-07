@@ -1,31 +1,106 @@
 # Arabic ABSA Pipeline
 
-This workspace contains a simple two-stage Aspect-Based Sentiment Analysis pipeline for the competition:
+A two-stage Aspect-Based Sentiment Analysis system for Arabic restaurant and e-commerce reviews, built for a competition setting with a small, noisy dataset. Evaluated on **exact (aspect, sentiment) pair Micro-F1** — stricter than standard ABSA benchmarks.
 
-1. Multi-label aspect detection
-2. Per-aspect sentiment classification
+---
 
-The model is intentionally lightweight and production-ready for a small, noisy Arabic dataset:
+## Architecture
 
-- Word + character TF-IDF features
-- One-vs-rest logistic regression for aspect detection
-- Per-aspect one-vs-rest logistic regression for sentiment
-- Threshold tuning on validation to optimize Micro-F1 over `(aspect, sentiment)` pairs
+### Stage 1 — Multi-label Aspect Detection
+A One-vs-Rest logistic regression classifier predicts which of **8 aspects** (+ a "none" class) are present in each review:
+`food`, `service`, `price`, `cleanliness`, `delivery`, `ambiance`, `app_experience`, `general`
+
+### Stage 2 — Per-aspect Sentiment Classification
+A separate One-vs-Rest logistic regression per aspect predicts sentiment (`positive`, `negative`, `neutral`) for each detected aspect. Aspects with only one sentiment class in training use a `ConstantSentimentModel` fallback.
+
+---
+
+## Feature Engineering
+
+**170,000-dimensional sparse feature space** built from two TF-IDF vectorizers fused via `FeatureUnion`:
+
+| Vectorizer | Analyzer | N-gram range | Max features | Notes |
+|---|---|---|---|---|
+| Word TF-IDF | word | 1–2 | 50,000 | `sublinear_tf=True`, `min_df=2` |
+| Char TF-IDF | char_wb | 3–5 | 120,000 | `sublinear_tf=True`, captures morphology |
+
+**Structured metadata** is appended as token suffixes to each review text before vectorization:
+```
+<normalized_review> business_category_restaurant platform_google_maps star_rating_4
+```
+This lets the model learn aspect–platform and aspect–rating correlations without a separate embedding layer.
+
+---
+
+## Arabic Text Normalization
+
+All reviews pass through a custom normalization pipeline before feature extraction:
+
+| Step | Detail |
+|---|---|
+| Unicode normalization | NFKC + HTML entity unescaping |
+| URL / mention removal | Strips `https://...` and `@handle` tokens |
+| Diacritic removal | Unicode range `\u0617–\u061A`, `\u064B–\u0652`, `\u0670` |
+| Tatweel removal | `\u0640` elongation character |
+| Alef unification | `أ إ آ ٱ` → `ا` |
+| Ya / Waw unification | `ى` → `ي`, `ئ` → `ي`, `ؤ` → `و` |
+| Repeated-char collapsing | `كككككتير` → `ككتير` (max 2 repeats) |
+| Whitespace normalization | Collapse all whitespace to single space |
+
+---
+
+## Threshold Tuning
+
+Default 0.5 decision thresholds are replaced by **coordinate-wise grid search** on the validation set:
+
+- Search grid: `[0.20, 0.25, ..., 0.80]` (13 candidates per aspect)
+- Strategy: optimize one aspect's threshold at a time, holding others fixed; repeat for 2 passes
+- Objective: maximize Micro-F1 on exact `(aspect, sentiment)` pairs
+- Result: per-aspect thresholds stored in `model.aspect_thresholds`
+
+This is important because aspect classes are imbalanced — rare aspects (e.g. `cleanliness`, `app_experience`) benefit significantly from lower thresholds.
+
+---
+
+## Metric
+
+Micro-F1 is computed on exact `(aspect, sentiment)` pairs. Both the aspect and its sentiment must match simultaneously.
+
+```
+Gold:      {("service", "positive"), ("food", "negative")}
+Predicted: {("service", "positive"), ("food", "neutral")}
+
+TP = 1  (service/positive matched)
+FP = 1  (food/neutral not in gold)
+FN = 1  (food/negative not predicted)
+
+precision = 1/2 = 0.50
+recall    = 1/2 = 0.50
+Micro-F1  = 0.50
+```
+
+---
 
 ## Files
 
-- `data_utils.py`: loading, cleaning, normalization, dataset summaries, Micro-F1
-- `model.py`: two-stage ABSA model and threshold tuning
-- `train.py`: training + validation + artifact saving
-- `inference.py`: test inference + `submission.json` generation
-- `app.py`: lightweight local web app to paste a review and see the prediction
-- `submission_utils.py`: submission schema validation + JSON saving
+| File | Purpose |
+|---|---|
+| `data_utils.py` | Loading, Arabic normalization, column standardization, dataset summaries, Micro-F1 |
+| `model.py` | Two-stage ABSA model, threshold tuning, evaluation |
+| `train.py` | Training + validation + artifact saving |
+| `inference.py` | Test inference + `submission.json` generation |
+| `app.py` | Lightweight local web demo (stdlib only, no framework) |
+| `submission_utils.py` | Submission schema validation + JSON saving |
+
+---
 
 ## Install
 
 ```bash
 python -m pip install -r requirements.txt
 ```
+
+---
 
 ## Train
 
@@ -36,6 +111,10 @@ python train.py ^
   --output-dir artifacts
 ```
 
+Training prints per-aspect sentiment classification reports and the final validation Micro-F1. The tuned model is saved to `artifacts/absa_model.joblib`.
+
+---
+
 ## Inference
 
 ```bash
@@ -45,31 +124,22 @@ python inference.py ^
   --output-path submission.json
 ```
 
-## App
+---
+
+## Local Demo App
 
 ```bash
 python app.py --model-path artifacts/absa_model.joblib
 ```
 
-Then open `http://127.0.0.1:8000` if the browser does not open automatically.
+Opens `http://127.0.0.1:8000` automatically. Paste any Arabic review and optionally provide star rating, platform, and business category. The app returns detected aspects, per-aspect sentiment, aspect probabilities vs. tuned thresholds, and the exact submission JSON.
 
-## Metric
+---
 
-Micro-F1 is computed on exact `(aspect, sentiment)` pairs.
+## Design Decisions
 
-Example:
+**Why TF-IDF + logistic regression, not a transformer?**
+The dataset is small and noisy. Fine-tuning AraBERT or CAMeL-BERT on a few hundred examples risks overfitting and requires GPU resources not available in competition. The char n-gram TF-IDF (3–5) effectively captures Arabic morphological variation without stemming or a dedicated morphological analyzer. The two-stage architecture keeps aspect errors from cascading into sentiment errors uncontrolled.
 
-- Gold: `("service", "positive")`, `("food", "negative")`
-- Prediction: `("service", "positive")`, `("food", "neutral")`
-
-This yields:
-
-- `TP = 1`
-- `FP = 1`
-- `FN = 1`
-
-Then:
-
-- `precision = TP / (TP + FP)`
-- `recall = TP / (TP + FN)`
-- `micro_f1 = 2 * precision * recall / (precision + recall)`
+**Why coordinate-wise threshold tuning?**
+A joint grid search over all 9 aspects would require 13⁹ ≈ 10 billion evaluations. Coordinate-wise search with 2 passes covers 9 × 13 × 2 = 234 evaluations and empirically finds near-optimal thresholds for imbalanced multi-label problems.
